@@ -1008,7 +1008,29 @@ function importBackup(input){const f=input.files&&input.files[0];input.value="";
 
 renderStock(); applyAllColors();
 
-if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(() => {});
+ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+  let refreshing = false;
+  navigator.serviceWorker.register("./sw.js").then(reg => {
+    reg.update().catch(() => {});
+    reg.addEventListener("updatefound", () => {
+      const worker = reg.installing;
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+          if (confirm("มีแอปเวอร์ชันใหม่แล้ว ต้องการอัปเดตตอนนี้หรือไม่?")) {
+            worker.postMessage({ type: "SKIP_WAITING" });
+          }
+        }
+      });
+    });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!refreshing) {
+      refreshing = true;
+      location.reload();
+    }
+  });
+ }
 
 /* ===== ซิงค์ทีม (Firebase Realtime Database ผ่าน REST + SSE) ===== */
 let es = null, syncCfg = { url: "", team: "" }, remote = {};
