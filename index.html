@@ -323,7 +323,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
       <div class="yw-field"><label for="yw-price">ราคาซื้อ (บาท)</label><input id="yw-price" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 500"></div>
       <div class="yw-field"><label for="yw-gross">น้ำหนักซื้อ (g)</label><input id="yw-gross" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 1000"></div>
       <div class="yw-field"><label for="yw-trim">น้ำหนักหลังแต่ง (g)</label><input id="yw-trim" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 800"></div>
-      <div class="yw-field"><label for="yw-cooked">น้ำหนักใช้ได้หลังปรุง (g) — ไม่บังคับ</label><input id="yw-cooked" type="number" min="0" step="any" inputmode="decimal" placeholder="เว้นว่างเพื่อใช้หลังแต่ง"></div>
+      <div class="yw-field"><label for="yw-cooked">น้ำหนักใช้ได้จริง (g) — หลังปรุง/เตรียมเสร็จ</label><input id="yw-cooked" type="number" min="0" step="any" inputmode="decimal" placeholder="กรอกได้ทันที ไม่ต้องกรอกหลังแต่ง"></div>
       <div class="yw-field"><label for="yw-portion">น้ำหนักต่อ portion (g)</label><input id="yw-portion" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 120"></div>
       <div class="yw-field"><label for="yw-min">Yield ขั้นต่ำ (%)</label><input id="yw-min" type="number" min="0" max="100" step="any" inputmode="decimal" value="70"></div>
       <div class="yw-field"><label for="yw-storage">สูญเสียระหว่างเก็บ (g)</label><input id="yw-storage" type="number" min="0" step="any" inputmode="decimal" value="0"></div>
@@ -332,13 +332,13 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
     </div>
     <div class="yw-metrics">
       <div class="yw-metric"><small>เศษแต่ง (g)</small><b id="yw-trim-waste">—</b></div>
-      <div class="yw-metric"><small>Trim yield</small><b id="yw-trim-yield">—</b></div>
-      <div class="yw-metric"><small>Cooking yield*</small><b id="yw-cook-yield">—</b></div>
+      <div class="yw-metric"><small>Yield หลังแต่ง / ซื้อ</small><b id="yw-trim-yield">—</b></div>
+      <div class="yw-metric"><small>Yield ใช้ได้จริง / ซื้อ</small><b id="yw-cook-yield">—</b></div>
       <div class="yw-metric"><small>น้ำหนักคิดต้นทุน (g)</small><b id="yw-effective">—</b></div>
       <div class="yw-metric"><small>ต้นทุนต่อกรัม</small><b id="yw-per-g">—</b></div>
       <div class="yw-metric"><small>ต้นทุนต่อ portion</small><b id="yw-per-portion">—</b></div>
     </div>
-    <p class="hint" style="text-align:left">*Cooking yield = น้ำหนักหลังปรุง ÷ น้ำหนักหลังแต่ง โดยใช้ได้เฉพาะเมื่อกรอกน้ำหนักหลังปรุงที่มากกว่า 0 และน้ำหนักซื้อ/หลังแต่งถูกต้องครบถ้วน การสูญเสียน้ำจากการปรุงปกติไม่ถือเป็นของเสียจากการผลิต</p>
+    <p class="hint" style="text-align:left">*Yield ใช้ได้จริง = น้ำหนักใช้ได้จริงหลังปรุง/เตรียม ÷ น้ำหนักซื้อ × 100 คำนวณได้ทันทีเมื่อกรอกน้ำหนักซื้อและน้ำหนักใช้ได้จริง โดยไม่จำเป็นต้องกรอกน้ำหนักหลังแต่ง</p>
     <div id="yw-alert"></div>
     <div class="btns">
       <button class="b save" onclick="ywSave()">💾 บันทึกล็อต</button>
@@ -1097,15 +1097,18 @@ function ywCurrent(){
 }
 function ywCalc(v){
  const gross=Number(v.gross), trim=Number(v.trim), cooked=v.cooked==null||v.cooked===""?null:Number(v.cooked);
- const validGross=Number.isFinite(gross)&&gross>0, validTrim=Number.isFinite(trim)&&trim>0&&validGross&&trim<=gross;
- const eff=cooked!=null&&cooked>0?cooked:(validTrim?trim:null);
+ const validGross=Number.isFinite(gross)&&gross>0;
+ const validTrim=Number.isFinite(trim)&&trim>0&&validGross&&trim<=gross;
+ const validCooked=cooked!=null&&Number.isFinite(cooked)&&cooked>0&&validGross&&cooked<=gross;
+ const eff=validCooked?cooked:(validTrim?trim:null);
  const trimWaste=validGross&&Number.isFinite(trim)&&trim>=0&&trim<=gross?gross-trim:null;
  const trimYield=validTrim?trim/gross*100:null;
- const cookYield=cooked!=null&&cooked>0&&validTrim&&cooked<=trim?cooked/trim*100:null;
+ const cookYield=validCooked?cooked/gross*100:null;
+ const cookingFromTrim=validCooked&&validTrim&&cooked<=trim?cooked/trim*100:null;
  const price=Number(v.price), validPrice=v.price!=null&&Number.isFinite(price)&&price>=0;
  const perG=validPrice&&eff>0?price/eff:null, portion=Number(v.portion);
  const perPortion=perG!=null&&Number.isFinite(portion)&&portion>0?perG*portion:null;
- return {eff,trimWaste,trimYield,cookYield,perG,perPortion,validGross,validTrim,validPrice};
+ return {eff,trimWaste,trimYield,cookYield,cookingFromTrim,perG,perPortion,validGross,validTrim,validCooked,validPrice};
 }
 function ywCalcUi(){
  const v=ywCurrent(), c=ywCalc(v);
@@ -1117,8 +1120,9 @@ function ywCalcUi(){
  $("yw-per-portion").textContent=ywMoney(c.perPortion);
  const alert=$("yw-alert"); alert.className=""; alert.textContent="";
  if(v.gross!=null&&v.trim!=null&&Number(v.trim)>Number(v.gross)){alert.className="yw-alert";alert.textContent="น้ำหนักหลังแต่งมากกว่าน้ำหนักซื้อ กรุณาตรวจสอบตัวเลข";}
- else if(v.cooked!=null&&v.cooked!==""&&Number(v.cooked)>Number(v.trim)){alert.className="yw-alert";alert.textContent="น้ำหนักหลังปรุงมากกว่าน้ำหนักหลังแต่ง กรุณาตรวจสอบว่ากรอกถูกช่องหรือไม่";}
- else if(v.min!=null&&c.trimYield!=null){
+ else if(v.cooked!=null&&v.cooked!==""&&Number(v.cooked)>Number(v.gross)){alert.className="yw-alert";alert.textContent="น้ำหนักใช้ได้จริงมากกว่าน้ำหนักซื้อ กรุณาตรวจสอบตัวเลข";}
+ else if(v.cooked!=null&&v.cooked!==""&&v.trim!=null&&v.trim>0&&Number(v.cooked)>Number(v.trim)){alert.className="yw-alert";alert.textContent="น้ำหนักใช้ได้จริงมากกว่าน้ำหนักหลังแต่ง กรุณาตรวจสอบตัวเลข";}
+ else if(v.min!=null&&(c.cookYield!=null||c.trimYield!=null)){
    const selected=c.cookYield!=null?c.cookYield:c.trimYield;
    if(selected<Number(v.min)){alert.className="yw-alert";alert.textContent="Yield ต่ำกว่ามาตรฐานที่ตั้งไว้ ("+ywFmt(selected)+"% เทียบกับ "+ywFmt(Number(v.min))+"%) — ตรวจสอบเงื่อนไขและบันทึกหมายเหตุ";}
    else {alert.className="yw-ok";alert.textContent="Yield อยู่ใน/สูงกว่ามาตรฐานที่ตั้งไว้";}
@@ -1132,9 +1136,10 @@ function ywReset(){
 function ywSave(){
  const v=ywCurrent();
  if(!v.ingredient) return alert("กรุณากรอกชื่อวัตถุดิบ");
- if(v.price==null||v.price<0||v.gross==null||v.gross<=0||v.trim==null||v.trim<=0) return alert("กรุณากรอกราคาซื้อ น้ำหนักซื้อ และน้ำหนักหลังแต่งให้ครบและมากกว่า 0");
- if(v.trim>v.gross) return alert("น้ำหนักหลังแต่งต้องไม่มากกว่าน้ำหนักซื้อ");
- if(v.cooked!=null&&(v.cooked<=0||v.cooked>v.trim)) return alert("น้ำหนักหลังปรุงต้องมากกว่า 0 และไม่เกินน้ำหนักหลังแต่ง หรือเว้นว่างหากไม่มีข้อมูล");
+ if(v.price==null||v.price<0||v.gross==null||v.gross<=0) return alert("กรุณากรอกราคาซื้อและน้ำหนักซื้อให้ครบและมากกว่า 0");
+ if(v.trim!=null&&v.trim>0&&v.trim>v.gross) return alert("น้ำหนักหลังแต่งต้องไม่มากกว่าน้ำหนักซื้อ");
+ if((v.trim==null||v.trim<=0)&&(v.cooked==null||v.cooked<=0)) return alert("กรอกน้ำหนักหลังแต่ง หรือ น้ำหนักใช้ได้จริงอย่างน้อยหนึ่งช่อง");
+ if(v.cooked!=null&&(v.cooked<=0||v.cooked>v.gross||(v.trim!=null&&v.trim>0&&v.cooked>v.trim))) return alert("น้ำหนักใช้ได้จริงต้องมากกว่า 0 และไม่เกินน้ำหนักซื้อ/น้ำหนักหลังแต่ง (ถ้ากรอกหลังแต่ง)");
  const list=ywRecords(), i=list.findIndex(x=>x.id===v.id);
  if(i>=0) list[i]=v; else list.unshift(v);
  try{localStorage.setItem(YW_KEY,JSON.stringify(list));}catch(e){return alert("บันทึกไม่สำเร็จ พื้นที่จัดเก็บในเครื่องอาจเต็ม");}
@@ -1156,11 +1161,11 @@ function ywRender(){
  const list=ywRecords(), sum=$("yw-summary"), hist=$("yw-history");if(!sum||!hist)return;
  const groups={};
  list.forEach(v=>{
-   const c=ywCalc(v), basis=c.cookYield!=null?"หลังปรุง":"หลังแต่ง";
+   const c=ywCalc(v), basis=c.cookYield!=null?"ใช้ได้จริงเทียบซื้อ":"หลังแต่งเทียบซื้อ";
    const condition=String(v.notes||"").trim().toLocaleLowerCase();
    const key=[String(v.ingredient||"").trim().toLocaleLowerCase(),basis,condition].join("|");
    if(!groups[key])groups[key]={name:v.ingredient||"(ไม่ระบุ)",basis,condition,count:0,yields:[],costs:[]};
-   const g=groups[key];g.count++;const y=basis==="หลังปรุง"?c.cookYield:c.trimYield;if(y!=null)g.yields.push(y);if(c.perG!=null)g.costs.push(c.perG);
+   const g=groups[key];g.count++;const y=basis==="ใช้ได้จริงเทียบซื้อ"?c.cookYield:c.trimYield;if(y!=null)g.yields.push(y);if(c.perG!=null)g.costs.push(c.perG);
  });
  sum.innerHTML=Object.values(groups).length?Object.values(groups).map(g=>`<div class="yw-record"><b>${esc(g.name)}</b> · ฐาน${esc(g.basis)}<br><small>เงื่อนไข: ${esc(g.condition||"ไม่ได้ระบุ")} · ${g.count} ล็อต</small><div class="yw-metrics"><div class="yw-metric"><small>Yield เฉลี่ย</small><b>${g.yields.length?ywFmt(g.yields.reduce((a,b)=>a+b,0)/g.yields.length)+"%":"—"}</b></div><div class="yw-metric"><small>ต้นทุน/กรัม เฉลี่ย</small><b>${g.costs.length?ywMoney(g.costs.reduce((a,b)=>a+b,0)/g.costs.length):"—"}</b></div></div></div>`).join(""):'<div class="empty">ยังไม่มีข้อมูลล็อตที่บันทึก</div>';
  hist.innerHTML=list.length?list.map(v=>{const c=ywCalc(v);return `<div class="yw-record"><div class="yw-record-head"><div><b>${esc(v.ingredient||"ไม่ระบุ")}</b><br><small>${esc(v.date||"ไม่ระบุวันที่")} · ${esc(v.operator||"ไม่ระบุผู้ปฏิบัติงาน")}</small></div><b>${ywMoney(c.perG)}/g</b></div><div class="tiny">ซื้อ ${ywFmt(v.gross)} g → หลังแต่ง ${ywFmt(v.trim)} g${v.cooked!=null&&v.cooked!==""?" → หลังปรุง "+ywFmt(v.cooked)+" g":""} · Yield ${c.cookYield!=null?ywFmt(c.cookYield):ywFmt(c.trimYield)}%</div><div class="tiny">ของเสียเก็บ ${ywFmt(v.storage||0)} g · ของเสียผลิต ${ywFmt(v.production||0)} g · ${esc(v.notes||"ไม่มีหมายเหตุ")}</div><div class="yw-record-actions"><button class="b ghost" onclick="ywEdit('${esc(v.id)}')">แก้ไข</button><button class="b red" style="margin:0" onclick="ywDelete('${esc(v.id)}')">ลบ</button></div></div>`}).join(""):'<div class="empty">ยังไม่มีประวัติ Yield</div>';

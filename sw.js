@@ -1,69 +1,18 @@
-/* Kitchen Recipe & Stock — Service Worker v7
-   Network-first for app HTML, cache-first for static assets.
-   New worker waits until the app user confirms the update in index.html.
-*/
-const CACHE = "recipe-app-v7";
-const FILES = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./icon-192.png",
-  "./icon-512.png"
-];
-
+const CACHE = "recipe-app-v8";
+const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", event => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    await Promise.all(FILES.map(async path => {
-      try { await cache.add(path); } catch (e) { /* optional asset may not exist yet */ }
-    }));
-  })());
+  event.waitUntil(caches.open(CACHE).then(cache => Promise.all(FILES.map(file => cache.add(file).catch(() => {})))));
 });
-
-self.addEventListener("message", event => {
-  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
-});
-
 self.addEventListener("activate", event => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys
-      .filter(key => key.startsWith("recipe-app-") && key !== CACHE)
-      .map(key => caches.delete(key)));
-    await self.clients.claim();
-  })());
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith("recipe-app-") && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
-
+self.addEventListener("message", event => { if (event.data === "SKIP_WAITING") self.skipWaiting(); });
 self.addEventListener("fetch", event => {
-  const req = event.request;
-  const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin) return;
-
-  if (req.mode === "navigate" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/")) {
-    event.respondWith((async () => {
-      const cache = await caches.open(CACHE);
-      try {
-        const response = await fetch(req, { cache: "no-store" });
-        if (response && response.ok) {
-          cache.put("./index.html", response.clone()).catch(() => {});
-          return response;
-        }
-      } catch (e) { /* offline fallback below */ }
-      return (await cache.match(req)) || (await cache.match("./index.html")) || Response.error();
-    })());
+  if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).then(response => { const copy = response.clone(); caches.open(CACHE).then(cache => cache.put("./index.html", copy)); return response; }).catch(() => caches.match(event.request).then(response => response || caches.match("./index.html"))));
     return;
   }
-
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const hit = await cache.match(req);
-    if (hit) return hit;
-    try {
-      const response = await fetch(req);
-      if (response && response.ok) cache.put(req, response.clone()).catch(() => {});
-      return response;
-    } catch (e) {
-      return Response.error();
-    }
-  })());
+  if (url.origin === self.location.origin) event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => { if (response.ok) { const copy = response.clone(); caches.open(CACHE).then(cache => cache.put(event.request, copy)); } return response; })));
 });
