@@ -1,16 +1,15 @@
-Kitchen Recipe & Stock — Complete PWA package
+Kitchen Recipe & Stock — replacement files
+Contents:
+- index.html: app page with Yield & Waste Control, recipe total weights, backup/restore for yield records.
+- sw.js: service worker cache version v7 with user-confirmed activation.
 
-Files:
-- index.html: main app (recipe scaling, main stock, quick stock check, field color settings, OCR/image import, backup/restore, Firebase sync)
-- manifest.webmanifest: installable PWA metadata
-- sw.js: service worker cache, versioned to refresh the complete app
-- icon-192.png and icon-512.png: app icons
+Deployment on GitHub Pages (Android):
+1. Download and unzip the package.
+2. In repository banjo9349/Ss, open index.html and replace its contents with the provided index.html, then commit.
+3. Replace sw.js with the provided sw.js and commit.
+4. Do not delete old files first; replace each file at the same path.
+5. Open the GitHub Pages app online and accept the update prompt. Check recipe and stock data are still present before relying on it.
+6. Export a backup before deployment. The new backup format includes Yield & Waste records and remains compatible with existing recipes/stock fields.
 
-Usage:
-1. For PWA installation and service-worker updates, host these files together on HTTPS. Opening index.html directly also works for many basic functions, but browser security rules can limit PWA features.
-2. Recipe and stock data are stored in the browser's localStorage. Use Settings > Backup to export a JSON backup regularly.
-3. OCR via Tesseract and AI reading require internet access. The AI API key is stored in browser localStorage in this client-only version; do not treat that as secure storage or share a copy containing a key.
-4. Firebase sync remains optional and uses the existing configuration flow. Configure restrictive Firebase security rules before using it with real data.
-5. Row dragging is supported where the browser permits native drag-and-drop. Up/down controls are included as a touch-friendly fallback.
-
-Validation performed: JavaScript syntax checked with Node.js. Real-device Android testing is still recommended for camera selection, OCR, drag interactions, local storage, and PWA installation.
+Checks performed: JavaScript syntax check passed; HTML duplicate-ID check passed; cost calculations checked against example (500 baht / 800 g = 0.625 baht/g; 500 baht / 600 g = 0.8333 baht/g; clearing cooked weight falls back to post-trim weight).
+Limit: these are static/smoke checks in this environment, not a full live Android browser test. Keep your current backup and do not clear site data.

@@ -1,5 +1,8 @@
-
-const CACHE = "recipe-app-v6";
+/* Kitchen Recipe & Stock — Service Worker v7
+   Network-first for app HTML, cache-first for static assets.
+   New worker waits until the app user confirms the update in index.html.
+*/
+const CACHE = "recipe-app-v7";
 const FILES = [
   "./",
   "./index.html",
@@ -8,71 +11,59 @@ const FILES = [
   "./icon-512.png"
 ];
 
-// ติดตั้งไฟล์ใหม่ แต่รอให้ผู้ใช้ยืนยันก่อนเปิดใช้
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE).then(cache =>
-      Promise.all(FILES.map(file =>
-        cache.add(file).catch(() => {})
-      ))
-    )
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(FILES.map(async path => {
+      try { await cache.add(path); } catch (e) { /* optional asset may not exist yet */ }
+    }));
+  })());
 });
 
-// รับคำสั่งจากปุ่มอัปเดตในแอป
 self.addEventListener("message", event => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
-// เปิดใช้เวอร์ชันใหม่ และลบเฉพาะแคชเก่าของแอปนี้
 self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(key =>
-          key.startsWith("recipe-app-") && key !== CACHE
-        ).map(key => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys
+      .filter(key => key.startsWith("recipe-app-") && key !== CACHE)
+      .map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
-// ขอหน้า HTML จากเครือข่ายก่อน เพื่อให้พบเวอร์ชันล่าสุด
-// ส่วนไฟล์อื่นยังใช้แคชได้เมื่อออฟไลน์
 self.addEventListener("fetch", event => {
-  const request = event.request;
-  const url = new URL(request.url);
+  const req = event.request;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin) return;
 
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin
-  ) return;
+  if (req.mode === "navigate" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/")) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const response = await fetch(req, { cache: "no-store" });
+        if (response && response.ok) {
+          cache.put("./index.html", response.clone()).catch(() => {});
+          return response;
+        }
+      } catch (e) { /* offline fallback below */ }
+      return (await cache.match(req)) || (await cache.match("./index.html")) || Response.error();
+    })());
+    return;
+  }
 
-  event.respondWith(
-    caches.match(request, { ignoreSearch: true })
-      .then(cached => {
-        const network = fetch(request)
-          .then(response => {
-            if (response && response.ok) {
-              const copy = response.clone();
-              caches.open(CACHE)
-                .then(cache => cache.put(request, copy))
-                .catch(() => {});
-            }
-            return response;
-          })
-          .catch(() =>
-            cached ||
-            (request.mode === "navigate"
-              ? caches.match("./index.html")
-              : undefined)
-          );
-
-        return request.mode === "navigate"
-          ? network.then(response => response || cached)
-          : (cached || network);
-      })
-  );
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(req);
+    if (hit) return hit;
+    try {
+      const response = await fetch(req);
+      if (response && response.ok) cache.put(req, response.clone()).catch(() => {});
+      return response;
+    } catch (e) {
+      return Response.error();
+    }
+  })());
 });

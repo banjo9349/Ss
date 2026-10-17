@@ -159,6 +159,28 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
 .cat-row { display:grid; grid-template-columns:46px minmax(0,1fr) 40px; gap:8px; align-items:center; margin-bottom:8px; }
 .cat-row input[type=color] { width:46px; height:42px; padding:3px; }
 .cat-row .del { border:0; background:transparent; color:var(--danger); font-size:16px; height:40px; }
+
+/* ===== Yield & Waste Control ===== */
+.yw-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.yw-field{min-width:0}.yw-field.full{grid-column:1/-1}.yw-field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:0 0 5px}
+.yw-field input,.yw-field select,.yw-field textarea{width:100%;min-width:0}
+.yw-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.yw-metric{background:var(--accent-soft);border-radius:12px;padding:10px}
+.yw-metric small{display:block;color:var(--muted);font-size:11px}
+.yw-metric b{display:block;font-size:17px;color:var(--accent);overflow-wrap:anywhere}
+.yw-alert{padding:10px 12px;border-radius:12px;margin-top:10px;font-size:13px;background:#fee2e2;color:#991b1b}
+.yw-ok{padding:10px 12px;border-radius:12px;margin-top:10px;font-size:13px;background:#dcfce7;color:#166534}
+.yw-record{border:1px solid var(--line);border-radius:14px;padding:12px;margin:8px 0}
+.yw-record-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.yw-record-head b{overflow-wrap:anywhere}
+.yw-record small{color:var(--muted)}
+.yw-record-actions{display:flex;gap:6px;margin-top:8px}
+.yw-record-actions button{flex:1}
+.recipe-totals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.recipe-total{padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--field);font-size:12px;color:var(--muted)}
+.recipe-total b{display:block;color:var(--accent);font-size:17px}
+@media(max-width:360px){.yw-grid{grid-template-columns:1fr}.yw-field.full{grid-column:auto}}
+
 </style>
 </head>
 <body>
@@ -184,6 +206,10 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
   <div class="recipe-scroll"><div class="heads"><div class="n">ชื่อวัตถุดิบ</div><div>น้ำหนักสูตรเดิม (g.)</div><div class="r">น้ำหนักสูตรปรับ (g.)</div><div></div></div>
   <div id="list"></div></div>
   <div class="ratio"><span>อัตราส่วนปัจจุบัน</span><b id="ratio-show">×1</b></div>
+  <div class="recipe-totals">
+    <div class="recipe-total">น้ำหนักสูตรเดิมรวม<b id="recipe-total-orig">0 g</b></div>
+    <div class="recipe-total">น้ำหนักสูตรปรับรวม<b id="recipe-total-scaled">0 g</b></div>
+  </div>
   <div class="btns">
     <button class="b add" onclick="addRow()">+ เพิ่มวัตถุดิบ</button>
     <button class="b ghost" onclick="resetRatio()">↩︎ กลับเป็น ×1</button>
@@ -284,11 +310,56 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
     <div class="settings-tools" style="margin-top:10px"><button class="b ghost" onclick="exportBackup()">⬇️ สำรองข้อมูล</button><button class="b ghost" onclick="document.getElementById('backup-file').click()">⬆️ นำเข้าข้อมูลสำรอง</button><input id="backup-file" type="file" accept="application/json,.json" style="display:none" onchange="importBackup(this)"></div>
   </div>
 </div>
+
+<div id="pg-yield" style="display:none">
+  <div class="card">
+    <h3>⚖️ Yield & Waste Control — คุม Yield และของเสีย</h3>
+    <p class="hint" style="text-align:left;margin:0 0 12px">บันทึกผลผลิตเป็นล็อต แยกเศษแต่งออกจากการสูญเสียน้ำระหว่างเก็บและของเสียจากการผลิต เพื่อคำนวณต้นทุนจากน้ำหนักที่ใช้ได้จริง</p>
+    <input id="yw-id" type="hidden">
+    <div class="yw-grid">
+      <div class="yw-field full"><label for="yw-ingredient">วัตถุดิบ</label><input id="yw-ingredient" placeholder="เช่น ลิ้นวัว / เนื้อสันนอก"></div>
+      <div class="yw-field"><label for="yw-date">วันที่ / ล็อต</label><input id="yw-date" type="date"></div>
+      <div class="yw-field"><label for="yw-operator">ผู้ปฏิบัติงาน</label><input id="yw-operator" placeholder="ชื่อหรือรหัส"></div>
+      <div class="yw-field"><label for="yw-price">ราคาซื้อ (บาท)</label><input id="yw-price" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 500"></div>
+      <div class="yw-field"><label for="yw-gross">น้ำหนักซื้อ (g)</label><input id="yw-gross" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 1000"></div>
+      <div class="yw-field"><label for="yw-trim">น้ำหนักหลังแต่ง (g)</label><input id="yw-trim" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 800"></div>
+      <div class="yw-field"><label for="yw-cooked">น้ำหนักใช้ได้หลังปรุง (g) — ไม่บังคับ</label><input id="yw-cooked" type="number" min="0" step="any" inputmode="decimal" placeholder="เว้นว่างเพื่อใช้หลังแต่ง"></div>
+      <div class="yw-field"><label for="yw-portion">น้ำหนักต่อ portion (g)</label><input id="yw-portion" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 120"></div>
+      <div class="yw-field"><label for="yw-min">Yield ขั้นต่ำ (%)</label><input id="yw-min" type="number" min="0" max="100" step="any" inputmode="decimal" value="70"></div>
+      <div class="yw-field"><label for="yw-storage">สูญเสียระหว่างเก็บ (g)</label><input id="yw-storage" type="number" min="0" step="any" inputmode="decimal" value="0"></div>
+      <div class="yw-field"><label for="yw-production">ของเสียจากการผลิต (g)</label><input id="yw-production" type="number" min="0" step="any" inputmode="decimal" value="0"></div>
+      <div class="yw-field full"><label for="yw-notes">เงื่อนไข / หมายเหตุ (ใช้ประกอบการเทียบล็อต)</label><textarea id="yw-notes" rows="2" placeholder="เช่น วิธีละลาย, อุณหภูมิ, วิธีแต่ง, วิธีปรุง"></textarea></div>
+    </div>
+    <div class="yw-metrics">
+      <div class="yw-metric"><small>เศษแต่ง (g)</small><b id="yw-trim-waste">—</b></div>
+      <div class="yw-metric"><small>Trim yield</small><b id="yw-trim-yield">—</b></div>
+      <div class="yw-metric"><small>Cooking yield*</small><b id="yw-cook-yield">—</b></div>
+      <div class="yw-metric"><small>น้ำหนักคิดต้นทุน (g)</small><b id="yw-effective">—</b></div>
+      <div class="yw-metric"><small>ต้นทุนต่อกรัม</small><b id="yw-per-g">—</b></div>
+      <div class="yw-metric"><small>ต้นทุนต่อ portion</small><b id="yw-per-portion">—</b></div>
+    </div>
+    <p class="hint" style="text-align:left">*Cooking yield = น้ำหนักหลังปรุง ÷ น้ำหนักหลังแต่ง โดยใช้ได้เฉพาะเมื่อกรอกน้ำหนักหลังปรุงที่มากกว่า 0 และน้ำหนักซื้อ/หลังแต่งถูกต้องครบถ้วน การสูญเสียน้ำจากการปรุงปกติไม่ถือเป็นของเสียจากการผลิต</p>
+    <div id="yw-alert"></div>
+    <div class="btns">
+      <button class="b save" onclick="ywSave()">💾 บันทึกล็อต</button>
+      <button class="b ghost" onclick="ywReset()">ล้างแบบฟอร์ม</button>
+      <button class="b ghost full" onclick="ywExportCSV()">⬇️ ส่งออกประวัติ CSV</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>📊 ประวัติและค่าเฉลี่ยสำหรับเปรียบเทียบ</h3>
+    <p class="hint" style="text-align:left;margin:0 0 10px">ระบบแยกกลุ่มตามวัตถุดิบและฐานน้ำหนัก (หลังแต่ง/หลังปรุง) และแสดงจำนวนล็อตกับค่าเฉลี่ย ไม่จัดอันดับผู้ปฏิบัติงานโดยตรง ควรเทียบเฉพาะล็อตที่มีเงื่อนไขใกล้เคียงกัน</p>
+    <div id="yw-summary"></div>
+    <div id="yw-history"></div>
+  </div>
+</div>
+
 <nav class="tabbar">
   <button id="tab-recipe" class="on" onclick="showTab('recipe')"><span>🍳</span>ปรับสูตร</button>
   <button id="tab-stock" onclick="showTab('stock')"><span>📦</span>สต๊อก</button>
   <button id="tab-quick" onclick="showTab('quick')"><span>🟠</span>เช็กใกล้หมด</button>
   <button id="tab-settings" onclick="showTab('settings')"><span>🎨</span>ตั้งค่า</button>
+  <button id="tab-yield" onclick="showTab('yield')"><span>⚖️</span>Yield</button>
 </nav>
 
 <div class="ov" id="ov"><div class="ov-in">
@@ -381,7 +452,14 @@ function render() {
   try { applyAllColors(); } catch (e) {}
 }
 
-function showRatio() { document.getElementById("ratio-show").textContent = "×" + (Math.round(ratio * 10000) / 10000); }
+function showRatio() {
+  document.getElementById("ratio-show").textContent = "×" + (Math.round(ratio * 10000) / 10000);
+  const original = rows.reduce((a,r) => a + Math.max(0, num(r.orig)), 0);
+  const scaled = rows.reduce((a,r) => a + (r.orig === "" ? 0 : Math.max(0, num(r.orig) * ratio)), 0);
+  const a = document.getElementById("recipe-total-orig"), b = document.getElementById("recipe-total-scaled");
+  if (a) a.textContent = fmt(original) + " g";
+  if (b) b.textContent = fmt(scaled) + " g";
+}
 
 function refreshRight(skip) {
   rows.forEach((r, i) => {
@@ -762,10 +840,10 @@ try { const d = JSON.parse(localStorage.getItem(STKEY) || "{}"); stock = d.items
 if (!Array.isArray(cats)) cats = JSON.parse(JSON.stringify(CAT_DEFAULTS));
 
 function showTab(t) {
-  ["recipe","stock","quick","settings"].forEach(k => { $("pg-"+k).style.display = t === k ? "block" : "none"; $("tab-"+k).classList.toggle("on", t === k); });
-  const heads = {recipe:["🍳 ปรับสัดส่วนสูตร","พิมพ์น้ำหนักช่องใดก็ได้ ระบบคำนวณทั้งสูตรทันที"],stock:["📦 สต๊อกหลัก","ตรวจยอดคงเหลือ เทียบยอดเป้าหมาย และคำนวณของที่ต้องสั่ง"],quick:["🟠 เช็กของใกล้หมด","กรอกจำนวนสั่งเพิ่มและทำเครื่องหมายเช็กแล้วในแถวเดียว"],settings:["🎨 ตั้งค่าแอป","ปรับสีช่องข้อมูล จัดเรียง และสำรองข้อมูล"]};
+  ["recipe","stock","quick","settings","yield"].forEach(k => { $("pg-"+k).style.display = t === k ? "block" : "none"; $("tab-"+k).classList.toggle("on", t === k); });
+  const heads = {recipe:["🍳 ปรับสัดส่วนสูตร","พิมพ์น้ำหนักช่องใดก็ได้ ระบบคำนวณทั้งสูตรทันที"],stock:["📦 สต๊อกหลัก","ตรวจยอดคงเหลือ เทียบยอดเป้าหมาย และคำนวณของที่ต้องสั่ง"],quick:["🟠 เช็กของใกล้หมด","กรอกจำนวนสั่งเพิ่มและทำเครื่องหมายเช็กแล้วในแถวเดียว"],settings:["🎨 ตั้งค่าแอป","ปรับสีช่องข้อมูล จัดเรียง และสำรองข้อมูล"],yield:["⚖️ Yield & Waste Control","บันทึกผลผลิต แยกของเสีย และคำนวณต้นทุนต่อกรัม/portion"]};
   $("hd-title").textContent = heads[t][0]; $("hd-sub").textContent = heads[t][1];
-  if (t === "quick") renderQuickStock(); if (t === "settings") { loadColorTarget(); loadRowHlUi(); renderCatList(); }
+  if (t === "quick") renderQuickStock(); if (t === "settings") { loadColorTarget(); loadRowHlUi(); renderCatList(); } if (t === "yield") ywRender();
   window.scrollTo(0, 0);
 }
 
@@ -1002,9 +1080,105 @@ function gripUp(){
 }
 function gripCancel(){ gripEnd(); }
 
+
+/* ===== Yield & Waste Control: local-first, preserves existing recipe/stock keys ===== */
+const YW_KEY = "ss_yield_waste_v1";
+const ywIds = ["ingredient","date","operator","price","gross","trim","cooked","portion","min","storage","production","notes"];
+const ywNum = id => { const el=$("yw-"+id), n=el && el.value.trim()!=="" ? Number(el.value) : NaN; return Number.isFinite(n) ? n : null; };
+const ywMoney = n => n == null || !Number.isFinite(n) ? "—" : "฿"+n.toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:4});
+const ywFmt = n => n == null || !Number.isFinite(n) ? "—" : n.toLocaleString("th-TH",{maximumFractionDigits:2});
+function ywRecords(){try{const d=JSON.parse(localStorage.getItem(YW_KEY)||"[]");return Array.isArray(d)?d:[]}catch(e){return[]}}
+function ywCurrent(){
+ const v={}; ywIds.forEach(k=>{v[k]=$("yw-"+k).value.trim()});
+ ["price","gross","trim","cooked","portion","min","storage","production"].forEach(k=>{v[k]=v[k]===""?null:Number(v[k]);});
+ v.id=$("yw-id").value||("yw_"+Date.now()+"_"+Math.random().toString(36).slice(2,7));
+ v.updatedAt=new Date().toISOString();
+ return v;
+}
+function ywCalc(v){
+ const gross=Number(v.gross), trim=Number(v.trim), cooked=v.cooked==null||v.cooked===""?null:Number(v.cooked);
+ const validGross=Number.isFinite(gross)&&gross>0, validTrim=Number.isFinite(trim)&&trim>0&&validGross&&trim<=gross;
+ const eff=cooked!=null&&cooked>0?cooked:(validTrim?trim:null);
+ const trimWaste=validGross&&Number.isFinite(trim)&&trim>=0&&trim<=gross?gross-trim:null;
+ const trimYield=validTrim?trim/gross*100:null;
+ const cookYield=cooked!=null&&cooked>0&&validTrim&&cooked<=trim?cooked/trim*100:null;
+ const price=Number(v.price), validPrice=v.price!=null&&Number.isFinite(price)&&price>=0;
+ const perG=validPrice&&eff>0?price/eff:null, portion=Number(v.portion);
+ const perPortion=perG!=null&&Number.isFinite(portion)&&portion>0?perG*portion:null;
+ return {eff,trimWaste,trimYield,cookYield,perG,perPortion,validGross,validTrim,validPrice};
+}
+function ywCalcUi(){
+ const v=ywCurrent(), c=ywCalc(v);
+ $("yw-trim-waste").textContent=ywFmt(c.trimWaste);
+ $("yw-trim-yield").textContent=c.trimYield==null?"—":ywFmt(c.trimYield)+"%";
+ $("yw-cook-yield").textContent=c.cookYield==null?"—":ywFmt(c.cookYield)+"%";
+ $("yw-effective").textContent=ywFmt(c.eff);
+ $("yw-per-g").textContent=ywMoney(c.perG);
+ $("yw-per-portion").textContent=ywMoney(c.perPortion);
+ const alert=$("yw-alert"); alert.className=""; alert.textContent="";
+ if(v.gross!=null&&v.trim!=null&&Number(v.trim)>Number(v.gross)){alert.className="yw-alert";alert.textContent="น้ำหนักหลังแต่งมากกว่าน้ำหนักซื้อ กรุณาตรวจสอบตัวเลข";}
+ else if(v.cooked!=null&&v.cooked!==""&&Number(v.cooked)>Number(v.trim)){alert.className="yw-alert";alert.textContent="น้ำหนักหลังปรุงมากกว่าน้ำหนักหลังแต่ง กรุณาตรวจสอบว่ากรอกถูกช่องหรือไม่";}
+ else if(v.min!=null&&c.trimYield!=null){
+   const selected=c.cookYield!=null?c.cookYield:c.trimYield;
+   if(selected<Number(v.min)){alert.className="yw-alert";alert.textContent="Yield ต่ำกว่ามาตรฐานที่ตั้งไว้ ("+ywFmt(selected)+"% เทียบกับ "+ywFmt(Number(v.min))+"%) — ตรวจสอบเงื่อนไขและบันทึกหมายเหตุ";}
+   else {alert.className="yw-ok";alert.textContent="Yield อยู่ใน/สูงกว่ามาตรฐานที่ตั้งไว้";}
+ }
+}
+function ywReset(){
+ $("yw-id").value="";
+ ywIds.forEach(k=>{const el=$("yw-"+k);if(el)el.value=(k==="date"?new Date().toISOString().slice(0,10):(k==="min"?"70":(["storage","production"].includes(k)?"0":"")))});
+ ywCalcUi();
+}
+function ywSave(){
+ const v=ywCurrent();
+ if(!v.ingredient) return alert("กรุณากรอกชื่อวัตถุดิบ");
+ if(v.price==null||v.price<0||v.gross==null||v.gross<=0||v.trim==null||v.trim<=0) return alert("กรุณากรอกราคาซื้อ น้ำหนักซื้อ และน้ำหนักหลังแต่งให้ครบและมากกว่า 0");
+ if(v.trim>v.gross) return alert("น้ำหนักหลังแต่งต้องไม่มากกว่าน้ำหนักซื้อ");
+ if(v.cooked!=null&&(v.cooked<=0||v.cooked>v.trim)) return alert("น้ำหนักหลังปรุงต้องมากกว่า 0 และไม่เกินน้ำหนักหลังแต่ง หรือเว้นว่างหากไม่มีข้อมูล");
+ const list=ywRecords(), i=list.findIndex(x=>x.id===v.id);
+ if(i>=0) list[i]=v; else list.unshift(v);
+ try{localStorage.setItem(YW_KEY,JSON.stringify(list));}catch(e){return alert("บันทึกไม่สำเร็จ พื้นที่จัดเก็บในเครื่องอาจเต็ม");}
+ $("yw-id").value=v.id; ywRender(); toast("บันทึกข้อมูล Yield แล้ว");
+}
+function ywEdit(id){
+ const v=ywRecords().find(x=>x.id===id);if(!v)return;
+ $("yw-id").value=v.id;
+ ywIds.forEach(k=>{const el=$("yw-"+k);if(el)el.value=v[k]==null?"":v[k]});
+ ywCalcUi();window.scrollTo({top:0,behavior:"smooth"});
+}
+function ywDelete(id){
+ if(!confirm("ลบข้อมูลล็อตนี้หรือไม่?"))return;
+ try{localStorage.setItem(YW_KEY,JSON.stringify(ywRecords().filter(x=>x.id!==id)));}catch(e){}
+ ywRender();toast("ลบข้อมูลล็อตแล้ว");
+}
+function ywRender(){
+ ywCalcUi();
+ const list=ywRecords(), sum=$("yw-summary"), hist=$("yw-history");if(!sum||!hist)return;
+ const groups={};
+ list.forEach(v=>{
+   const c=ywCalc(v), basis=c.cookYield!=null?"หลังปรุง":"หลังแต่ง";
+   const condition=String(v.notes||"").trim().toLocaleLowerCase();
+   const key=[String(v.ingredient||"").trim().toLocaleLowerCase(),basis,condition].join("|");
+   if(!groups[key])groups[key]={name:v.ingredient||"(ไม่ระบุ)",basis,condition,count:0,yields:[],costs:[]};
+   const g=groups[key];g.count++;const y=basis==="หลังปรุง"?c.cookYield:c.trimYield;if(y!=null)g.yields.push(y);if(c.perG!=null)g.costs.push(c.perG);
+ });
+ sum.innerHTML=Object.values(groups).length?Object.values(groups).map(g=>`<div class="yw-record"><b>${esc(g.name)}</b> · ฐาน${esc(g.basis)}<br><small>เงื่อนไข: ${esc(g.condition||"ไม่ได้ระบุ")} · ${g.count} ล็อต</small><div class="yw-metrics"><div class="yw-metric"><small>Yield เฉลี่ย</small><b>${g.yields.length?ywFmt(g.yields.reduce((a,b)=>a+b,0)/g.yields.length)+"%":"—"}</b></div><div class="yw-metric"><small>ต้นทุน/กรัม เฉลี่ย</small><b>${g.costs.length?ywMoney(g.costs.reduce((a,b)=>a+b,0)/g.costs.length):"—"}</b></div></div></div>`).join(""):'<div class="empty">ยังไม่มีข้อมูลล็อตที่บันทึก</div>';
+ hist.innerHTML=list.length?list.map(v=>{const c=ywCalc(v);return `<div class="yw-record"><div class="yw-record-head"><div><b>${esc(v.ingredient||"ไม่ระบุ")}</b><br><small>${esc(v.date||"ไม่ระบุวันที่")} · ${esc(v.operator||"ไม่ระบุผู้ปฏิบัติงาน")}</small></div><b>${ywMoney(c.perG)}/g</b></div><div class="tiny">ซื้อ ${ywFmt(v.gross)} g → หลังแต่ง ${ywFmt(v.trim)} g${v.cooked!=null&&v.cooked!==""?" → หลังปรุง "+ywFmt(v.cooked)+" g":""} · Yield ${c.cookYield!=null?ywFmt(c.cookYield):ywFmt(c.trimYield)}%</div><div class="tiny">ของเสียเก็บ ${ywFmt(v.storage||0)} g · ของเสียผลิต ${ywFmt(v.production||0)} g · ${esc(v.notes||"ไม่มีหมายเหตุ")}</div><div class="yw-record-actions"><button class="b ghost" onclick="ywEdit('${esc(v.id)}')">แก้ไข</button><button class="b red" style="margin:0" onclick="ywDelete('${esc(v.id)}')">ลบ</button></div></div>`}).join(""):'<div class="empty">ยังไม่มีประวัติ Yield</div>';
+}
+function ywExportCSV(){
+ const list=ywRecords();if(!list.length)return toast("ยังไม่มีข้อมูลให้ส่งออก");
+ const cols=["date","ingredient","operator","price","gross","trim","cooked","portion","min","storage","production","notes"];
+ const q=x=>'"'+String(x==null?"":x).replace(/"/g,'""')+'"';
+ const rows=[cols.join(","),...list.map(v=>cols.map(k=>q(v[k])).join(","))];
+ const blob=new Blob(["\uFEFF"+rows.join("\r\n")],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="yield-waste-"+new Date().toISOString().slice(0,10)+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+ywIds.forEach(k=>{const el=$("yw-"+k);if(el)el.addEventListener("input",ywCalcUi)});
+$("yw-date").value=new Date().toISOString().slice(0,10);
+
 /* ===== สำรอง/กู้คืนข้อมูล ===== */
-function exportBackup(){const data={version:2,exportedAt:new Date().toISOString(),recipes:getSaved(),stock:stock,cats:cats,colors:fieldColors,highlight:rowHl};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="kitchen-recipe-stock-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("สร้างไฟล์สำรองแล้ว");}
-function importBackup(input){const f=input.files&&input.files[0];input.value="";if(!f)return;const reader=new FileReader();reader.onload=()=>{try{const d=JSON.parse(reader.result);if(!d||typeof d!=="object"||(!d.recipes&&!Array.isArray(d.stock)))throw new Error("รูปแบบไฟล์ไม่ถูกต้อง");if(!confirm("นำเข้าข้อมูลสำรองหรือไม่? รายการที่ไม่มีในไฟล์สำรองจะยังอยู่ ส่วนรายการชื่อซ้ำจะถูกแทนที่ด้วยข้อมูลในไฟล์"))return;if(d.recipes&&typeof d.recipes==="object"){const cur=normLocal(getSaved());Object.keys(d.recipes).forEach(n=>{const v=d.recipes[n];cur[n]=Array.isArray(v)?{rows:v,ratio:1,at:Date.now()}:Object.assign({},v,{at:Date.now()});});localStorage.setItem(KEY,JSON.stringify(cur));Object.keys(d.recipes).forEach(syncPush);}if(Array.isArray(d.stock)){d.stock.forEach(x=>{const it=Object.assign({orderQty:"",checked:false},x),nm=(it.name||"").trim(),ex=nm&&stock.find(y=>(y.name||"").trim()===nm);if(ex)Object.assign(ex,it);else stock.push(it);});saveStock(true);}if(Array.isArray(d.cats)){d.cats.forEach(c=>{if(!c||!/^[A-Za-z0-9_-]+$/.test(c.id||"")||!okHex(c.color))return;const e=cats.find(x=>x.id===c.id);if(e){e.name=String(c.name||"");e.color=c.color;}else cats.push({id:c.id,name:String(c.name||""),color:c.color});});saveStock(true);}if(d.colors&&typeof d.colors==="object"){fieldColors=Object.assign({},COLOR_DEFAULTS,d.colors);localStorage.setItem(COLOR_KEY,JSON.stringify(fieldColors));}if(d.highlight&&typeof d.highlight==="object"){rowHl=Object.assign({},HL_DEFAULT,d.highlight);try{localStorage.setItem(HL_KEY,JSON.stringify(rowHl));}catch(e){}applyRowHl();loadRowHlUi();}updateList();renderStock();applyAllColors();toast("นำเข้าข้อมูลสำรองแล้ว");}catch(e){alert("นำเข้าไม่สำเร็จ: "+e.message);}};reader.readAsText(f);}
+function exportBackup(){const data={version:3,exportedAt:new Date().toISOString(),recipes:getSaved(),stock:stock,cats:cats,colors:fieldColors,highlight:rowHl,yieldWaste:ywRecords()};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="kitchen-recipe-stock-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("สร้างไฟล์สำรองแล้ว");}
+function importBackup(input){const f=input.files&&input.files[0];input.value="";if(!f)return;const reader=new FileReader();reader.onload=()=>{try{const d=JSON.parse(reader.result);if(!d||typeof d!=="object"||(!d.recipes&&!Array.isArray(d.stock)))throw new Error("รูปแบบไฟล์ไม่ถูกต้อง");if(!confirm("นำเข้าข้อมูลสำรองหรือไม่? รายการที่ไม่มีในไฟล์สำรองจะยังอยู่ ส่วนรายการชื่อซ้ำจะถูกแทนที่ด้วยข้อมูลในไฟล์"))return;if(d.recipes&&typeof d.recipes==="object"){const cur=normLocal(getSaved());Object.keys(d.recipes).forEach(n=>{const v=d.recipes[n];cur[n]=Array.isArray(v)?{rows:v,ratio:1,at:Date.now()}:Object.assign({},v,{at:Date.now()});});localStorage.setItem(KEY,JSON.stringify(cur));Object.keys(d.recipes).forEach(syncPush);}if(Array.isArray(d.stock)){d.stock.forEach(x=>{const it=Object.assign({orderQty:"",checked:false},x),nm=(it.name||"").trim(),ex=nm&&stock.find(y=>(y.name||"").trim()===nm);if(ex)Object.assign(ex,it);else stock.push(it);});saveStock(true);}if(Array.isArray(d.cats)){d.cats.forEach(c=>{if(!c||!/^[A-Za-z0-9_-]+$/.test(c.id||"")||!okHex(c.color))return;const e=cats.find(x=>x.id===c.id);if(e){e.name=String(c.name||"");e.color=c.color;}else cats.push({id:c.id,name:String(c.name||""),color:c.color});});saveStock(true);}if(d.colors&&typeof d.colors==="object"){fieldColors=Object.assign({},COLOR_DEFAULTS,d.colors);localStorage.setItem(COLOR_KEY,JSON.stringify(fieldColors));}if(d.highlight&&typeof d.highlight==="object"){rowHl=Object.assign({},HL_DEFAULT,d.highlight);try{localStorage.setItem(HL_KEY,JSON.stringify(rowHl));}catch(e){}applyRowHl();loadRowHlUi();}if(Array.isArray(d.yieldWaste)){const cur=ywRecords(),byId=new Map(cur.map(x=>[x.id,x]));d.yieldWaste.forEach(x=>{if(x&&x.id)byId.set(x.id,x);});try{localStorage.setItem(YW_KEY,JSON.stringify(Array.from(byId.values())));}catch(e){}}updateList();renderStock();applyAllColors();ywRender();toast("นำเข้าข้อมูลสำรองแล้ว");}catch(e){alert("นำเข้าไม่สำเร็จ: "+e.message);}};reader.readAsText(f);}
 
 renderStock(); applyAllColors();
 
