@@ -181,6 +181,12 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
 .recipe-total b{display:block;color:var(--accent);font-size:17px}
 @media(max-width:360px){.yw-grid{grid-template-columns:1fr}.yw-field.full{grid-column:auto}}
 
+.heads, .nums { grid-template-columns: 1.3fr 1fr 1fr 112px; }
+.row-actions { display:flex; gap:3px; } .row-actions button { flex:1; min-width:0; padding:8px 0; }
+.mode-box label { font-size:12px; font-weight:700; color:var(--muted); } .mode-box { margin-bottom:12px; }
+.mode-pan { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:6px; align-items:center; margin-top:8px; font-size:13px; }
+.grp-h { font-size:13px; font-weight:800; color:var(--accent); margin:10px 0 2px; padding:6px 10px; background:var(--accent-soft); border-radius:10px; }
+.ratio input { width:110px; text-align:right; font-weight:800; color:var(--accent); font-size:18px; }
 </style>
 </head>
 <body>
@@ -202,16 +208,24 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
   <h3>⚖️ วัตถุดิบ (กรัม)</h3>
   <button class="scan-open" onclick="openScan()">📷 สแกนสูตรจากสมุด / รูปภาพ</button>
   <input type="text" id="recipe-name" data-color="recipeTitle" placeholder="ชื่อสูตร เช่น ซอสสูตรลับ">
+  <div class="mode-box">
+    <label for="recipe-mode">โหมดการคำนวณ</label>
+    <select id="recipe-mode" onchange="onModeChange(this.value)"><option value="C">C · มาตรฐานทั่วไป</option><option value="A">A · แยกซอสเบส / ผักสดซอย</option><option value="B">B · คำนวณตามจำนวนเสิร์ฟ</option></select>
+    <div id="mode-a" class="mode-pan" style="display:none"><span>ผักสด</span><input type="number" inputmode="decimal" step="any" id="cfg-x" placeholder="X กรัม" oninput="onCfg()"><span>ต่อซอสเบส</span><input type="number" inputmode="decimal" step="any" id="cfg-y" placeholder="Y กรัม" oninput="onCfg()"></div>
+    <div id="mode-b" class="mode-pan" style="display:none"><span>สูตรเดิมได้</span><input type="number" inputmode="decimal" step="any" id="cfg-sb" placeholder="เสิร์ฟ" oninput="onCfg()"><span>เป้าหมาย</span><input type="number" inputmode="decimal" step="any" id="cfg-st" placeholder="เสิร์ฟ" oninput="onCfg('st')"></div>
+  </div>
   <div class="last" id="last"></div>
   <div class="recipe-scroll"><div class="heads"><div class="n">ชื่อวัตถุดิบ</div><div>น้ำหนักสูตรเดิม (g.)</div><div class="r">น้ำหนักสูตรปรับ (g.)</div><div></div></div>
   <div id="list"></div></div>
-  <div class="ratio"><span>อัตราส่วนปัจจุบัน</span><b id="ratio-show">×1</b></div>
+  <div class="ratio"><span>ตัวคูณสูตร ×</span><input type="number" inputmode="decimal" step="any" min="0" id="ratio-input" value="1" oninput="onRatioInput(this.value)"></div>
   <div class="recipe-totals">
     <div class="recipe-total">น้ำหนักสูตรเดิมรวม<b id="recipe-total-orig">0 g</b></div>
     <div class="recipe-total">น้ำหนักสูตรปรับรวม<b id="recipe-total-scaled">0 g</b></div>
   </div>
+  <div class="hint" id="tot-sub" style="text-align:left;margin:6px 0 0"></div>
   <div class="btns">
-    <button class="b add" onclick="addRow()">+ เพิ่มวัตถุดิบ</button>
+    <button class="b add" id="add-base" onclick="addRow()">+ เพิ่มวัตถุดิบ</button>
+    <button class="b add" id="add-herb" style="display:none" onclick="addRow('herb')">+ เพิ่มผักสดซอย</button>
     <button class="b ghost" onclick="resetRatio()">↩︎ กลับเป็น ×1</button>
     <button class="b save full" onclick="saveRecipe()">💾 บันทึกสูตร (รวมปริมาณที่ปรุงล่าสุด)</button>
     <button class="b ghost full" onclick="clearAll()">🧹 ล้างหน้าจอใหม่</button>
@@ -247,7 +261,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
 </div>
 <div id="pg-quick" style="display:none">
   <div class="card">
-    <h3>🟠 เช็กของใกล้หมด</h3>
+    <h3>🟠 สรุปยอดสั่งซื้อ</h3>
     <p class="hint" style="text-align:left;margin:0 0 12px">กรอกจำนวนที่ต้องการสั่งเพิ่มได้ทันที · เมื่อมีตัวเลขมากกว่า 0 แถวนั้นจะมีแถบสีส้มด้านซ้าย (ปรับ/ปิดได้ที่ตั้งค่า) · กด “เช็กแล้ว” เพื่อจำว่าตรวจรายการนี้แล้ว</p>
     <div id="pb-quick" class="paintbar"></div>
     <div class="settings-tools" style="margin-bottom:10px">
@@ -258,7 +272,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
     <div class="field-scroll"><div class="quick-head"><div></div><div>รายการ</div><div>จำนวนสั่งเพิ่ม</div><div>ตรวจแล้ว</div></div><div id="quicklist"></div></div>
     <div class="btns">
       <button class="b save" onclick="copyQuickOrder()">📋 คัดลอกรายการที่กรอกจำนวน</button>
-      <button class="b ghost" onclick="resetQuickChecks()">↻ เริ่มรอบเช็กใหม่</button>
+      <button class="b ghost" onclick="resetQuickChecks()">↻ เริ่มรอบใหม่</button>
     </div>
     <button class="b ghost full" style="width:100%;margin-top:8px" onclick="addStock();showTab('stock')">+ เพิ่มวัตถุดิบในหน้าสต๊อกหลัก</button>
   </div>
@@ -271,7 +285,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
     <select id="color-target" onchange="loadColorTarget()">
       <option value="recipeName">ชื่อวัตถุดิบ — หน้าปรับสูตร</option><option value="recipeOrig">น้ำหนักสูตรเดิม</option><option value="recipeNew">น้ำหนักสูตรปรับ</option>
       <option value="stockName">ชื่อวัตถุดิบ — หน้าสต๊อก</option><option value="stockQty">ยอดคงเหลือ</option><option value="stockPar">ยอดเป้าหมาย/ควรมี</option><option value="stockUnit">หน่วยชั่งตวง</option>
-      <option value="quickQty">จำนวนสั่งเพิ่ม — หน้าเช็กของใกล้หมด</option><option value="recipeTitle">ชื่อสูตร</option><option value="general">ช่องข้อมูลทั่วไป</option>
+      <option value="quickQty">จำนวนสั่งเพิ่ม — หน้าสรุปยอดสั่งซื้อ</option><option value="recipeTitle">ชื่อสูตร</option><option value="general">ช่องข้อมูลทั่วไป</option>
     </select>
     <div class="settings-grid" style="margin-top:12px">
       <label for="color-base">เลือกเฉดสี</label><input id="color-base" type="color" value="#fff1e6" oninput="syncSlidersFromBase()">
@@ -284,7 +298,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
     <button class="b ghost" style="width:100%;margin-top:8px" onclick="resetColors()">คืนค่าสีทั้งหมด</button>
   </div>
   <div class="card">
-    <h3>🟠 ไฮไลต์แถวหน้าเช็กใกล้หมด</h3>
+    <h3>🟠 ไฮไลต์แถวหน้าสรุปยอดสั่งซื้อ</h3>
     <p class="hint" style="text-align:left;margin:0 0 12px">เลือกว่าเมื่อกรอกจำนวนสั่งเพิ่มแล้วจะให้แถวแสดงอย่างไร และเลือกสีได้เอง ตัวอักษรจะไม่ถูกบังไม่ว่าโหมดสว่างหรือมืด</p>
     <div class="settings-grid">
       <label for="hl-mode">รูปแบบ</label>
@@ -296,13 +310,13 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
   </div>
   <div class="card" id="cat-card">
     <h3>🏷️ หมวดสีรายการวัตถุดิบ</h3>
-    <p class="hint" style="text-align:left;margin:0 0 12px">ตั้งชื่อหมวดและเลือกสีได้เอง แล้วไปหน้าสต๊อกหรือหน้าเช็กของใกล้หมด เลือกสีหมวดแล้วแตะรายการเพื่อลงสี · เปลี่ยนสีหมวดที่นี่ ทุกรายการในหมวดจะเปลี่ยนตามอัตโนมัติ</p>
+    <p class="hint" style="text-align:left;margin:0 0 12px">ตั้งชื่อหมวดและเลือกสีได้เอง แล้วไปหน้าสต๊อกหรือหน้าสรุปยอดสั่งซื้อ เลือกสีหมวดแล้วแตะรายการเพื่อลงสี · เปลี่ยนสีหมวดที่นี่ ทุกรายการในหมวดจะเปลี่ยนตามอัตโนมัติ</p>
     <div id="cat-list"></div>
     <button class="b add" style="width:100%" onclick="addCat()">+ เพิ่มหมวดสี</button>
   </div>
   <div class="card">
     <h3>↕️ การจัดเรียงรายการ</h3>
-    <p class="hint" style="text-align:left;margin:0">หน้าสต๊อกและหน้าเช็กของใกล้หมด: แตะไอคอน ☰ หน้าแถวค้างไว้แล้วลากขึ้น–ลงเพื่อเรียงใหม่ (หน้าสต๊อกมีปุ่ม ↑ ↓ สำรอง) · มีปุ่ม “เรียงรายการตามหมวดสี” ในหน้าสต๊อก · ลำดับจะถูกบันทึกและซิงค์อัตโนมัติ</p>
+    <p class="hint" style="text-align:left;margin:0">หน้าสต๊อกและหน้าสรุปยอดสั่งซื้อ: แตะไอคอน ☰ หน้าแถวค้างไว้แล้วลากขึ้น–ลงเพื่อเรียงใหม่ (หน้าสต๊อกมีปุ่ม ↑ ↓ สำรอง) · มีปุ่ม “เรียงรายการตามหมวดสี” ในหน้าสต๊อก · ลำดับจะถูกบันทึกและซิงค์อัตโนมัติ</p>
   </div>
   <div class="card">
     <h3>🛡️ ข้อมูลและความเป็นส่วนตัว</h3>
@@ -357,7 +371,7 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
 <nav class="tabbar">
   <button id="tab-recipe" class="on" onclick="showTab('recipe')"><span>🍳</span>ปรับสูตร</button>
   <button id="tab-stock" onclick="showTab('stock')"><span>📦</span>สต๊อก</button>
-  <button id="tab-quick" onclick="showTab('quick')"><span>🟠</span>เช็กใกล้หมด</button>
+  <button id="tab-quick" onclick="showTab('quick')"><span>🟠</span>สรุปยอดสั่งซื้อ</button>
   <button id="tab-settings" onclick="showTab('settings')"><span>🎨</span>ตั้งค่า</button>
   <button id="tab-yield" onclick="showTab('yield')"><span>⚖️</span>Yield</button>
 </nav>
@@ -438,52 +452,87 @@ const esc = s => String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(
 const fmt = n => String(Math.round(n * 100) / 100);
 const num = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
 
-function render() {
-  const box = document.getElementById("list");
-  if (!rows.length) { box.innerHTML = '<div class="empty">ยังไม่มีวัตถุดิบ กด "+ เพิ่มวัตถุดิบ" ได้เลย</div>'; showRatio(); return; }
-  box.innerHTML = rows.map((r, i) => `
-    <div class="nums" ${DRAG} data-kind="recipe" data-index="${i}" ondragstart="dragStart(event,'recipe',${i})" ondragover="dragOver(event)" ondrop="dropRow(event,'recipe',${i})" ondragend="dragEnd(event)">
+let rcfg = { mode: "C", x: "", y: "", sb: "", st: "" };
+const isHerb = r => rcfg.mode === "A" && r.grp === "herb";
+const sumOrig = herb => rows.reduce((t, r) => ((r.grp === "herb") === herb ? t + num(r.orig) : t), 0);
+function herbRatio() {
+  const X = num(rcfg.x), Y = num(rcfg.y), sh = sumOrig(true);
+  if (!(X > 0 && Y > 0 && sh > 0)) return ratio;
+  return (sumOrig(false) * ratio / Y * X) / sh;
+}
+const rowRatio = r => isHerb(r) ? herbRatio() : ratio;
+const newW = r => r.orig === "" ? "" : fmt(num(r.orig) * rowRatio(r));
+
+function rowHtml(i) {
+  const r = rows[i];
+  return `<div class="nums" ${DRAG} data-kind="recipe" data-index="${i}" ondragstart="dragStart(event,'recipe',${i})" ondragover="dragOver(event)" ondrop="dropRow(event,'recipe',${i})" ondragend="dragEnd(event)">
       <input class="nm" data-color="recipeName" type="text" value="${esc(r.name)}" placeholder="ชื่อวัตถุดิบ" oninput="rows[${i}].name=this.value;dirty=true">
       <input class="o" data-color="recipeOrig" type="number" inputmode="decimal" step="any" id="o${i}" value="${r.orig === '' ? '' : r.orig}" placeholder="g." oninput="onOrig(${i},this.value)">
-      <input class="r" data-color="recipeNew" type="number" inputmode="decimal" step="any" id="n${i}" value="${r.orig === '' ? '' : fmt(num(r.orig) * ratio)}" placeholder="g." oninput="onNew(${i},this.value)">
-      <div class="row-actions"><button title="เลื่อนขึ้น" onclick="moveRow('recipe',${i},-1)">↑</button><button title="เลื่อนลง" onclick="moveRow('recipe',${i},1)">↓</button><button class="del" title="ลบ" onclick="removeRow(${i})">✕</button></div>
-    </div>`).join("");
-  showRatio();
+      <input class="r" data-color="recipeNew" type="number" inputmode="decimal" step="any" id="n${i}" value="${newW(r)}" placeholder="g." oninput="onNew(${i},this.value)">
+      <div class="row-actions"><button title="เลื่อนขึ้น" onclick="moveRow('recipe',${i},-1)">↑</button><button title="เลื่อนลง" onclick="moveRow('recipe',${i},1)">↓</button>${rcfg.mode === "A" ? `<button title="ย้ายกลุ่ม" onclick="toggleGrp(${i})">⇄</button>` : ""}<button class="del" title="ลบแถว" onclick="removeRow(${i})">🗑️</button></div>
+    </div>`;
+}
+function render() {
+  const box = document.getElementById("list");
+  if (rcfg.mode === "A") {
+    const g = (t, herb) => { const ix = rows.map((_, i) => i).filter(i => (rows[i].grp === "herb") === herb);
+      return `<div class="grp-h">${t}</div>` + (ix.length ? ix.map(rowHtml).join("") : '<div class="empty">ยังไม่มีรายการ</div>'); };
+    box.innerHTML = g("🥣 กลุ่มซอสเบส (Base Sauce)", false) + g("🌿 กลุ่มผักสดซอย (Fresh Herbs)", true);
+  } else if (!rows.length) box.innerHTML = '<div class="empty">ยังไม่มีวัตถุดิบ กด "+ เพิ่มวัตถุดิบ" ได้เลย</div>';
+  else box.innerHTML = rows.map((_, i) => rowHtml(i)).join("");
+  cfgUi(); showRatio();
   try { applyAllColors(); } catch (e) {}
 }
-
-function showRatio() {
-  document.getElementById("ratio-show").textContent = "×" + (Math.round(ratio * 10000) / 10000);
-  const original = rows.reduce((a,r) => a + Math.max(0, num(r.orig)), 0);
-  const scaled = rows.reduce((a,r) => a + (r.orig === "" ? 0 : Math.max(0, num(r.orig) * ratio)), 0);
-  const a = document.getElementById("recipe-total-orig"), b = document.getElementById("recipe-total-scaled");
-  if (a) a.textContent = fmt(original) + " g";
-  if (b) b.textContent = fmt(scaled) + " g";
+function cfgUi() {
+  document.getElementById("recipe-mode").value = rcfg.mode;
+  document.getElementById("mode-a").style.display = rcfg.mode === "A" ? "grid" : "none";
+  document.getElementById("mode-b").style.display = rcfg.mode === "B" ? "grid" : "none";
+  document.getElementById("add-herb").style.display = rcfg.mode === "A" ? "" : "none";
+  document.getElementById("add-base").textContent = rcfg.mode === "A" ? "+ เพิ่มซอสเบส" : "+ เพิ่มวัตถุดิบ";
+  [["cfg-x", "x"], ["cfg-y", "y"], ["cfg-sb", "sb"], ["cfg-st", "st"]].forEach(([id, k]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = rcfg[k]; });
 }
-
+function showRatio() {
+  const ri = document.getElementById("ratio-input");
+  if (document.activeElement !== ri) ri.value = Math.round(ratio * 10000) / 10000;
+  if (rcfg.mode === "B" && num(rcfg.sb) > 0) { rcfg.st = fmt(num(rcfg.sb) * ratio); const el = document.getElementById("cfg-st"); if (document.activeElement !== el) el.value = rcfg.st; }
+  const o = rows.reduce((t, r) => t + Math.max(0, num(r.orig)), 0), n = rows.reduce((t, r) => t + Math.max(0, num(r.orig) * rowRatio(r)), 0);
+  const ea = document.getElementById("recipe-total-orig"), eb = document.getElementById("recipe-total-scaled");
+  if (ea) ea.textContent = fmt(o) + " g"; if (eb) eb.textContent = fmt(n) + " g";
+  const sub = document.getElementById("tot-sub");
+  if (sub) sub.textContent = rcfg.mode === "A" ? `ปรับแล้ว: ซอสเบส ${fmt(sumOrig(false) * ratio)} g · ผักสดซอย ${fmt(sumOrig(true) * herbRatio())} g` : "";
+}
 function refreshRight(skip) {
-  rows.forEach((r, i) => {
-    if (i === skip) return;
-    const el = document.getElementById("n" + i);
-    if (el) el.value = r.orig === "" ? "" : fmt(num(r.orig) * ratio);
-  });
+  rows.forEach((r, i) => { if (i === skip) return; const el = document.getElementById("n" + i); if (el) el.value = newW(r); });
   showRatio();
 }
-
 function onOrig(i, v) { rows[i].orig = v === "" ? "" : num(v); refreshRight(-1); dirty = true; }
-
 function onNew(i, v) {
-  const o = num(rows[i].orig), n = parseFloat(v);
-  if (o > 0 && !isNaN(n) && n >= 0) { ratio = n / o; refreshRight(i); dirty = true; }
+  const r = rows[i], o = num(r.orig), n = parseFloat(v);
+  if (!(o > 0) || isNaN(n) || n < 0) return;
+  if (isHerb(r)) {   // แก้น้ำหนักผัก → ปรับสัดส่วน X ต่อ Y
+    const nb = sumOrig(false) * ratio, sh = sumOrig(true);
+    if (nb <= 0) return;
+    const hr = n / o, Y = num(rcfg.y) > 0 ? num(rcfg.y) : nb;
+    rcfg.y = fmt(Y); rcfg.x = fmt(hr * sh * Y / nb); cfgUi();
+  } else ratio = n / o;
+  refreshRight(i); dirty = true;
 }
-
-function addRow() { rows.push({ name: "", orig: "" }); dirty = true; render(); }
+function onRatioInput(v) { const n = parseFloat(v); if (!(n > 0)) return; ratio = n; refreshRight(-1); dirty = true; }
+function onCfg(src) {
+  rcfg.x = document.getElementById("cfg-x").value; rcfg.y = document.getElementById("cfg-y").value;
+  rcfg.sb = document.getElementById("cfg-sb").value; rcfg.st = document.getElementById("cfg-st").value;
+  if (rcfg.mode === "B" && num(rcfg.sb) > 0 && num(rcfg.st) > 0) ratio = num(rcfg.st) / num(rcfg.sb);
+  refreshRight(-1); dirty = true;
+}
+function onModeChange(m) { rcfg.mode = m; dirty = true; render(); }
+function toggleGrp(i) { rows[i].grp = rows[i].grp === "herb" ? "base" : "herb"; dirty = true; render(); }
+function addRow(g) { rows.push({ name: "", orig: "", grp: g === "herb" ? "herb" : "base" }); dirty = true; render(); }
 function removeRow(i) { rows.splice(i, 1); dirty = true; render(); }
 function resetRatio() { ratio = 1; render(); }
 function setLast(t) { document.getElementById("last").textContent = t || ""; }
 
 function clearAll() {
-  rows = []; ratio = 1;
+  rows = []; ratio = 1; rcfg = { mode: "C", x: "", y: "", sb: "", st: "" };
   document.getElementById("recipe-name").value = "";
   document.getElementById("saved").value = "";
   setLast(""); addRow(); dirty = false;
@@ -496,7 +545,7 @@ function saveRecipe() {
   if (!name) return alert("กรุณาตั้งชื่อสูตรก่อนบันทึก");
   if (!rows.length) return alert("กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 ช่อง");
   const s = getSaved();
-  s[name] = { rows: rows.map(r => ({ name: r.name, orig: r.orig })), ratio: ratio, at: Date.now() };
+  s[name] = { rows: rows.map(r => ({ name: r.name, orig: r.orig, grp: r.grp || "base" })), ratio: ratio, cfg: { ...rcfg }, at: Date.now() };
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { return alert("บันทึกไม่สำเร็จ"); }
   updateList(name);
   dirty = false; syncPush(name);
@@ -519,7 +568,8 @@ function loadRecipe() {
   if (!n || !s[n]) return;
   const d = s[n];
   const list = Array.isArray(d) ? d : d.rows;   // รองรับข้อมูลรูปแบบเก่า
-  rows = list.map(r => ({ name: r.name, orig: r.orig }));
+  rows = list.map(r => ({ name: r.name, orig: r.orig, grp: r.grp === "herb" ? "herb" : "base" }));
+  rcfg = Object.assign({ mode: "C", x: "", y: "", sb: "", st: "" }, (!Array.isArray(d) && d.cfg) || {});
   ratio = (!Array.isArray(d) && d.ratio > 0) ? d.ratio : 1;
   dirty = false;
   document.getElementById("recipe-name").value = n;
@@ -841,7 +891,7 @@ if (!Array.isArray(cats)) cats = JSON.parse(JSON.stringify(CAT_DEFAULTS));
 
 function showTab(t) {
   ["recipe","stock","quick","settings","yield"].forEach(k => { $("pg-"+k).style.display = t === k ? "block" : "none"; $("tab-"+k).classList.toggle("on", t === k); });
-  const heads = {recipe:["🍳 ปรับสัดส่วนสูตร","พิมพ์น้ำหนักช่องใดก็ได้ ระบบคำนวณทั้งสูตรทันที"],stock:["📦 สต๊อกหลัก","ตรวจยอดคงเหลือ เทียบยอดเป้าหมาย และคำนวณของที่ต้องสั่ง"],quick:["🟠 เช็กของใกล้หมด","กรอกจำนวนสั่งเพิ่มและทำเครื่องหมายเช็กแล้วในแถวเดียว"],settings:["🎨 ตั้งค่าแอป","ปรับสีช่องข้อมูล จัดเรียง และสำรองข้อมูล"],yield:["⚖️ Yield & Waste Control","บันทึกผลผลิต แยกของเสีย และคำนวณต้นทุนต่อกรัม/portion"]};
+  const heads = {recipe:["🍳 ปรับสัดส่วนสูตร","พิมพ์น้ำหนักช่องใดก็ได้ ระบบคำนวณทั้งสูตรทันที"],stock:["📦 สต๊อกหลัก","ตรวจยอดคงเหลือ เทียบยอดเป้าหมาย และคำนวณของที่ต้องสั่ง"],quick:["🟠 สรุปยอดสั่งซื้อ","กรอกจำนวนสั่งเพิ่มและทำเครื่องหมายเช็กแล้วในแถวเดียว"],settings:["🎨 ตั้งค่าแอป","ปรับสีช่องข้อมูล จัดเรียง และสำรองข้อมูล"],yield:["⚖️ Yield & Waste Control","บันทึกผลผลิต แยกของเสีย และคำนวณต้นทุนต่อกรัม/portion"]};
   $("hd-title").textContent = heads[t][0]; $("hd-sub").textContent = heads[t][1];
   if (t === "quick") renderQuickStock(); if (t === "settings") { loadColorTarget(); loadRowHlUi(); renderCatList(); } if (t === "yield") ywRender();
   window.scrollTo(0, 0);
@@ -937,7 +987,7 @@ function shareOrder() {
   if (navigator.share) navigator.share({ text: t }).catch(() => {}); else copyOrder();
 }
 
-/* ===== หน้าเช็กของใกล้หมด ===== */
+/* ===== หน้าสรุปยอดสั่งซื้อ ===== */
 let quickFilter = "all";
 function setQuickFilter(f) { quickFilter = f; renderQuickStock(); }
 function renderQuickStock() {
@@ -956,7 +1006,7 @@ function renderQuickStock() {
 }
 function quickQtyEdit(i,v) { stock[i].orderQty = v === "" ? "" : Math.max(0, Number(v) || 0); saveStock(true); const r=$("qr"+i); if(r) r.classList.toggle("ordered",sNum(stock[i].orderQty)>0); }
 function toggleChecked(i) { stock[i].checked = !stock[i].checked; saveStock(true); renderQuickStock(); }
-function resetQuickChecks() { if(!confirm("เริ่มรอบตรวจใหม่และล้างเครื่องหมายเช็กแล้วทั้งหมดหรือไม่? จำนวนที่กรอกสั่งเพิ่มจะยังคงอยู่")) return; stock.forEach(it=>it.checked=false); saveStock(true); renderQuickStock(); toast("เริ่มรอบเช็กใหม่แล้ว"); }
+function resetQuickChecks() { if(!confirm("เริ่มรอบใหม่หรือไม่? จะล้างจำนวนสั่งเพิ่มและเครื่องหมายเช็กแล้วทั้งหมด")) return; stock.forEach(it=>{it.checked=false;it.orderQty="";}); saveStock(true); renderQuickStock(); toast("เริ่มรอบใหม่แล้ว ล้างจำนวนทั้งหมดแล้ว"); }
 function copyQuickOrder() { const l=stock.filter(it=>(it.name||"").trim() && sNum(it.orderQty)>0); if(!l.length) return toast("ยังไม่ได้กรอกจำนวนสั่งเพิ่ม"); const t="รายการสั่งเพิ่ม "+new Date().toLocaleDateString("th-TH")+"\n"+l.map(it=>"- "+it.name+" "+fmt(sNum(it.orderQty))+" "+(it.unit||"")).join("\n"); const done=()=>toast("คัดลอกรายการสั่งเพิ่มแล้ว"); if(navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(done,()=>fallbackCopy(t,done)); else fallbackCopy(t,done); }
 
 /* ===== ลากเรียงและปุ่มเลื่อนสำรองสำหรับมือถือ ===== */
@@ -981,7 +1031,7 @@ function applyColorTarget(quiet){const key=currentTarget(),h=hexToHsl($('color-b
 function applyAllColors(){document.querySelectorAll("[data-color]").forEach(el=>{const c=fieldColors[el.dataset.color];if(c){el.style.backgroundColor=c.bg;el.style.color=c.fg;}if(el.dataset.ic){el.style.backgroundColor=el.dataset.ic;el.style.color=inkOn(el.dataset.ic);}});const rt=$('recipe-name');if(rt&&fieldColors.recipeTitle){rt.style.backgroundColor=fieldColors.recipeTitle.bg;rt.style.color=fieldColors.recipeTitle.fg;}document.querySelectorAll('input:not([data-color]):not([type=file]):not([type=color]):not([type=range]),select:not(#color-target)').forEach(el=>{if(fieldColors.general){el.style.backgroundColor=fieldColors.general.bg;el.style.color=fieldColors.general.fg;}});}
 function resetColors(){if(!confirm("คืนค่าสีเริ่มต้นทั้งหมดหรือไม่?"))return;fieldColors=JSON.parse(JSON.stringify(COLOR_DEFAULTS));try{localStorage.setItem(COLOR_KEY,JSON.stringify(fieldColors));}catch(e){}applyAllColors();loadColorTarget();toast("คืนค่าสีเริ่มต้นแล้ว");}
 
-/* ===== ไฮไลต์แถวหน้าเช็กใกล้หมด (ปรับได้) ===== */
+/* ===== ไฮไลต์แถวหน้าสรุปยอดสั่งซื้อ (ปรับได้) ===== */
 const HL_KEY="row_hl_v1", HL_DEFAULT={mode:"bar",color:"#f97316"};
 let rowHl={...HL_DEFAULT}; try{rowHl=Object.assign({},HL_DEFAULT,JSON.parse(localStorage.getItem(HL_KEY)||"{}"));}catch(e){}
 function hexRgba(h,a){return "rgba("+parseInt(h.slice(1,3),16)+","+parseInt(h.slice(3,5),16)+","+parseInt(h.slice(5,7),16)+","+a+")";}
@@ -1217,7 +1267,7 @@ const keyOf = n => "r" + btoa(unescape(encodeURIComponent(n))).replace(/\+/g, "-
 const base = () => syncCfg.url + "/teams/" + syncCfg.team + "/recipes";
 function toast(t) { const e = $("toast"); e.textContent = t; e.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove("on"), 3500); }
 function setSync(t) { $("syncchip").textContent = t; $("syncst").textContent = t.replace(/^\S+\s/, ""); }
-function openSync() { $("synccard").open = true; $("synccard").scrollIntoView({ behavior: "smooth" }); }
+function openSync() { showTab("settings"); $("synccard").open = true; $("synccard").scrollIntoView({ behavior: "smooth" }); }
 function putLocal(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
 function normLocal(s) {   // รองรับข้อมูลรูปแบบเก่า (array)
   let ch = false;
@@ -1226,10 +1276,13 @@ function normLocal(s) {   // รองรับข้อมูลรูปแบ
 }
 
 function connectSync() {
-  disconnectSync(true);
-  const u = $("sync-url").value.trim().replace(/\/+$/, ""), t = $("sync-team").value.trim().replace(/[.$#\[\]\/\s]/g, "");
-  if (!/^https:\/\/\S+$/.test(u)) return alert("ใส่ Database URL ที่ขึ้นต้นด้วย https://");
+  let u = $("sync-url").value.trim().replace(/\.json$/i, ""), t = $("sync-team").value.trim().replace(/[.$#\[\]\/\s]/g, "");
+  try { u = new URL(u).origin; } catch (e) { return alert("Database URL ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://"); }
+  if (!/^https:\/\//.test(u)) return alert("ใส่ Database URL ที่ขึ้นต้นด้วย https://");
   if (t.length < 6) return alert("รหัสทีมควรยาวอย่างน้อย 6 ตัวอักษร (ไม่ใช้ . $ # [ ] /)");
+  if (es && syncCfg.team && (syncCfg.team !== t || syncCfg.url !== u) && !confirm("เปลี่ยนไปซิงค์กับทีม/ฐานข้อมูลใหม่? ข้อมูลในเครื่องจะถูกรวมเข้าไปในทีมใหม่")) return;
+  disconnectSync(true); remote = {};
+  $("sync-url").value = u; $("sync-team").value = t;
   syncCfg = { url: u, team: t };
   try { localStorage.setItem("sync_cfg", JSON.stringify(syncCfg)); } catch (e) {}
   setSync("🟡 กำลังเชื่อมต่อ...");
@@ -1259,7 +1312,7 @@ function mergeInitial() {
   Object.values(remote).forEach(d => {
     if (!d || !d.name || !d.rows) return;
     const l = s[d.name];
-    if (!l || (d.at || 0) > (l.at || 0)) { s[d.name] = { rows: d.rows, ratio: d.ratio > 0 ? d.ratio : 1, at: d.at || 0 }; if (d.name === cur) rl = d.name; }
+    if (!l || (d.at || 0) > (l.at || 0)) { s[d.name] = { rows: d.rows, ratio: d.ratio > 0 ? d.ratio : 1, cfg: d.cfg || null, at: d.at || 0 }; if (d.name === cur) rl = d.name; }
   });
   Object.keys(s).forEach(n => { const r = remote[keyOf(n)]; if (!r || s[n].at > (r.at || 0)) up.push(n); });
   putLocal(s); updateList(cur); if (rl) maybeReload(rl); up.forEach(syncPush);
@@ -1271,7 +1324,7 @@ function applyRemote(k) {
   if (d && d.name && d.rows) {
     const l = s[d.name];
     if (l && (l.at || 0) >= (d.at || 0)) return;
-    s[d.name] = { rows: d.rows, ratio: d.ratio > 0 ? d.ratio : 1, at: d.at || 0 };
+    s[d.name] = { rows: d.rows, ratio: d.ratio > 0 ? d.ratio : 1, cfg: d.cfg || null, at: d.at || 0 };
     putLocal(s); updateList(cur);
     if (d.name === cur) maybeReload(d.name); else toast("สูตร \"" + d.name + "\" อัปเดตจากเครื่องอื่น");
   } else {
@@ -1290,7 +1343,7 @@ function maybeReload(name) {
 function syncPush(name) {
   if (!es) return;
   const d = getSaved()[name]; if (!d || Array.isArray(d)) return;
-  fetch(base() + "/" + keyOf(name) + ".json", { method: "PUT", body: JSON.stringify({ name: name, rows: d.rows, ratio: d.ratio, at: d.at }) })
+  fetch(base() + "/" + keyOf(name) + ".json", { method: "PUT", body: JSON.stringify({ name: name, rows: d.rows, ratio: d.ratio, cfg: d.cfg || null, at: d.at }) })
     .catch(() => setSync("🔴 ส่งข้อมูลไม่สำเร็จ จะซิงค์ใหม่เมื่อเชื่อมต่อ"));
 }
 function syncDelete(name) {
@@ -1300,6 +1353,8 @@ function syncDelete(name) {
 
 $("list").addEventListener("input", () => { dirty = true; });
 dirty = false; applyAllColors();
+$("pg-settings").insertBefore($("synccard"), $("pg-settings").firstChild);
+window.addEventListener("online", () => { if (syncCfg.url && syncCfg.team && !es) connectSync(); });
 try { const c = JSON.parse(localStorage.getItem("sync_cfg") || "{}"); if (c.url && c.team) { $("sync-url").value = c.url; $("sync-team").value = c.team; connectSync(); } } catch (e) {}
 </script>
 </body>
