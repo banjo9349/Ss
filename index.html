@@ -181,8 +181,10 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
 .recipe-total b{display:block;color:var(--accent);font-size:17px}
 @media(max-width:360px){.yw-grid{grid-template-columns:1fr}.yw-field.full{grid-column:auto}}
 
-.heads, .nums { grid-template-columns: 1.3fr 1fr 1fr 112px; }
-.row-actions { display:flex; gap:3px; } .row-actions button { flex:1; min-width:0; padding:8px 0; }
+.recipe-scroll .heads, .recipe-scroll .nums { min-width:0; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr) 60px; }
+.nums .row-actions { display:grid; grid-template-columns:repeat(2,28px); grid-auto-rows:26px; gap:2px; justify-content:end; }
+.nums .row-actions button { width:28px; height:26px; padding:0; font-size:13px; }
+.nums .row-actions .del { color:var(--danger); }
 .mode-box label { font-size:12px; font-weight:700; color:var(--muted); } .mode-box { margin-bottom:12px; }
 .mode-pan { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:6px; align-items:center; margin-top:8px; font-size:13px; }
 .grp-h { font-size:13px; font-weight:800; color:var(--accent); margin:10px 0 2px; padding:6px 10px; background:var(--accent-soft); border-radius:10px; }
@@ -211,7 +213,12 @@ body.paint-on .srow, body.paint-on .quick-row { cursor:pointer; }
   <div class="mode-box">
     <label for="recipe-mode">โหมดการคำนวณ</label>
     <select id="recipe-mode" onchange="onModeChange(this.value)"><option value="C">C · มาตรฐานทั่วไป</option><option value="A">A · แยกซอสเบส / ผักสดซอย</option><option value="B">B · คำนวณตามจำนวนเสิร์ฟ</option></select>
-    <div id="mode-a" class="mode-pan" style="display:none"><span>ผักสด</span><input type="number" inputmode="decimal" step="any" id="cfg-x" placeholder="X กรัม" oninput="onCfg()"><span>ต่อซอสเบส</span><input type="number" inputmode="decimal" step="any" id="cfg-y" placeholder="Y กรัม" oninput="onCfg()"></div>
+    <div id="mode-a" style="display:none">
+      <div class="mode-pan"><span>ผักสด</span><input type="number" inputmode="decimal" step="any" id="cfg-x" placeholder="X กรัม" oninput="onCfg()"><span>ต่อซอสเบส</span><input type="number" inputmode="decimal" step="any" id="cfg-y" placeholder="Y กรัม" oninput="onCfg()"></div>
+      <button class="b ghost" id="lock-btn" style="width:100%;margin-top:8px" onclick="toggleLock()">🔓 ล็อกสัดส่วน</button>
+      <div class="mode-pan"><span>ผักรวม</span><input type="number" inputmode="decimal" step="any" id="cfg-ht" placeholder="กรัม" oninput="onTarget('h')"><span>ซอสเบสรวม</span><input type="number" inputmode="decimal" step="any" id="cfg-bt" placeholder="กรัม" oninput="onTarget('b')"></div>
+      <div class="tiny" style="margin-top:6px;color:var(--muted)">กรอกผักรวมที่มี → ระบบคำนวณซอสเบสที่ต้องผสมและน้ำหนักผักทุกชนิดทันที (หรือกรอกซอสเบสรวมแทนก็ได้) · เว้น X/Y ว่าง = ใช้สัดส่วนตามสูตรเดิม</div>
+    </div>
     <div id="mode-b" class="mode-pan" style="display:none"><span>สูตรเดิมได้</span><input type="number" inputmode="decimal" step="any" id="cfg-sb" placeholder="เสิร์ฟ" oninput="onCfg()"><span>เป้าหมาย</span><input type="number" inputmode="decimal" step="any" id="cfg-st" placeholder="เสิร์ฟ" oninput="onCfg('st')"></div>
   </div>
   <div class="last" id="last"></div>
@@ -455,10 +462,11 @@ const num = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
 let rcfg = { mode: "C", x: "", y: "", sb: "", st: "" };
 const isHerb = r => rcfg.mode === "A" && r.grp === "herb";
 const sumOrig = herb => rows.reduce((t, r) => ((r.grp === "herb") === herb ? t + num(r.orig) : t), 0);
+function herbXY() { const sh = sumOrig(true), sb = sumOrig(false); return { sh, sb, X: num(rcfg.x) > 0 ? num(rcfg.x) : sh, Y: num(rcfg.y) > 0 ? num(rcfg.y) : sb }; }
 function herbRatio() {
-  const X = num(rcfg.x), Y = num(rcfg.y), sh = sumOrig(true);
+  const { sh, sb, X, Y } = herbXY();
   if (!(X > 0 && Y > 0 && sh > 0)) return ratio;
-  return (sumOrig(false) * ratio / Y * X) / sh;
+  return (sb * ratio / Y * X) / sh;
 }
 const rowRatio = r => isHerb(r) ? herbRatio() : ratio;
 const newW = r => r.orig === "" ? "" : fmt(num(r.orig) * rowRatio(r));
@@ -473,6 +481,7 @@ function rowHtml(i) {
     </div>`;
 }
 function render() {
+  if (!(ratio > 0)) ratio = 1;
   const box = document.getElementById("list");
   if (rcfg.mode === "A") {
     const g = (t, herb) => { const ix = rows.map((_, i) => i).filter(i => (rows[i].grp === "herb") === herb);
@@ -485,11 +494,25 @@ function render() {
 }
 function cfgUi() {
   document.getElementById("recipe-mode").value = rcfg.mode;
-  document.getElementById("mode-a").style.display = rcfg.mode === "A" ? "grid" : "none";
+  document.getElementById("mode-a").style.display = rcfg.mode === "A" ? "block" : "none";
   document.getElementById("mode-b").style.display = rcfg.mode === "B" ? "grid" : "none";
   document.getElementById("add-herb").style.display = rcfg.mode === "A" ? "" : "none";
   document.getElementById("add-base").textContent = rcfg.mode === "A" ? "+ เพิ่มซอสเบส" : "+ เพิ่มวัตถุดิบ";
   [["cfg-x", "x"], ["cfg-y", "y"], ["cfg-sb", "sb"], ["cfg-st", "st"]].forEach(([id, k]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = rcfg[k]; });
+  const lb = document.getElementById("lock-btn");
+  lb.textContent = rcfg.lock ? "🔒 ล็อกสัดส่วนอยู่ (แตะเพื่อปลดล็อก)" : "🔓 ล็อกสัดส่วน";
+  ["cfg-x", "cfg-y"].forEach(id => { document.getElementById(id).disabled = !!rcfg.lock; });
+}
+function toggleLock() {
+  if (!rcfg.lock) { if (!(num(rcfg.x) > 0)) rcfg.x = fmt(sumOrig(true)); if (!(num(rcfg.y) > 0)) rcfg.y = fmt(sumOrig(false)); }
+  rcfg.lock = !rcfg.lock; dirty = true; cfgUi(); refreshRight(-1);
+}
+function onTarget(w) {   // กรอกผักรวม หรือ ซอสเบสรวม → คำนวณทั้งตารางทันที
+  const v = parseFloat(document.getElementById(w === "h" ? "cfg-ht" : "cfg-bt").value);
+  const { sb, X, Y } = herbXY();
+  if (!(v > 0) || !(sb > 0) || !(X > 0) || !(Y > 0)) return;
+  ratio = (w === "h" ? v / X * Y : v) / sb;
+  refreshRight(-1); dirty = true;
 }
 function showRatio() {
   const ri = document.getElementById("ratio-input");
@@ -498,6 +521,11 @@ function showRatio() {
   const o = rows.reduce((t, r) => t + Math.max(0, num(r.orig)), 0), n = rows.reduce((t, r) => t + Math.max(0, num(r.orig) * rowRatio(r)), 0);
   const ea = document.getElementById("recipe-total-orig"), eb = document.getElementById("recipe-total-scaled");
   if (ea) ea.textContent = fmt(o) + " g"; if (eb) eb.textContent = fmt(n) + " g";
+  if (rcfg.mode === "A") {
+    const eh = document.getElementById("cfg-ht"), eb2 = document.getElementById("cfg-bt");
+    if (document.activeElement !== eh) eh.value = sumOrig(true) > 0 ? fmt(sumOrig(true) * herbRatio()) : "";
+    if (document.activeElement !== eb2) eb2.value = sumOrig(false) > 0 ? fmt(sumOrig(false) * ratio) : "";
+  }
   const sub = document.getElementById("tot-sub");
   if (sub) sub.textContent = rcfg.mode === "A" ? `ปรับแล้ว: ซอสเบส ${fmt(sumOrig(false) * ratio)} g · ผักสดซอย ${fmt(sumOrig(true) * herbRatio())} g` : "";
 }
@@ -508,8 +536,12 @@ function refreshRight(skip) {
 function onOrig(i, v) { rows[i].orig = v === "" ? "" : num(v); refreshRight(-1); dirty = true; }
 function onNew(i, v) {
   const r = rows[i], o = num(r.orig), n = parseFloat(v);
-  if (!(o > 0) || isNaN(n) || n < 0) return;
-  if (isHerb(r)) {   // แก้น้ำหนักผัก → ปรับสัดส่วน X ต่อ Y
+  if (!(o > 0) || isNaN(n) || n <= 0) return;
+  if (isHerb(r) && rcfg.lock) {   // ล็อกสัดส่วน → แก้น้ำหนักผัก ซอสเบสและผักทุกตัวปรับตาม
+    const { sh, sb, X, Y } = herbXY();
+    if (!(sb > 0 && X > 0)) return;
+    ratio = (sh * (n / o) / X * Y) / sb;
+  } else if (isHerb(r)) {   // ไม่ล็อก → แก้น้ำหนักผัก = ปรับสัดส่วน X ต่อ Y
     const nb = sumOrig(false) * ratio, sh = sumOrig(true);
     if (nb <= 0) return;
     const hr = n / o, Y = num(rcfg.y) > 0 ? num(rcfg.y) : nb;
